@@ -35,8 +35,17 @@
 #include <SofaBaseLinearSolver/FullVector.h>
 #include <SofaEigen2Solver/EigenSparseMatrix.h>
 
+#ifdef SOFA_HAVE_METIS
+#include <SofaSparseSolver/SparseLDLSolver.h>
+#endif
+
+/// @warning this can only manage one scene at a time
+/// (root singleton)
+
+
 namespace sofa
 {
+
 
 namespace modeling {
 
@@ -118,8 +127,6 @@ public:
 };
 
 
-SOFA_SceneCreator_API simulation::Node::SPtr getRoot();
-
 /// Get a state vector from the scene graph. Includes only the independent state values, or also the mapped ones, depending on the flag.
 SOFA_SceneCreator_API Vector getVector( core::ConstVecId id, bool independentOnly=true );
 
@@ -129,12 +136,12 @@ SOFA_SceneCreator_API simulation::Node::SPtr initSofa();
 
 /** Initialize the scene graph
   */
-SOFA_SceneCreator_API void initScene();
+SOFA_SceneCreator_API void initScene(simulation::Node::SPtr root);
 
 /// Clear the scene graph and return a pointer to the new root
 SOFA_SceneCreator_API simulation::Node::SPtr clearScene();
 
-/// Create a link from source to target.  
+/// Create a link from source to target.
 SOFA_SceneCreator_API void setDataLink(core::objectmodel::BaseData* source, core::objectmodel::BaseData* target);
 
 

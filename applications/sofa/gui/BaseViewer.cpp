@@ -125,9 +125,10 @@ const std::string BaseViewer::screenshotName()
 #endif
 }
 
-void BaseViewer::setPrefix(const std::string& prefix)
+void BaseViewer::setPrefix(const std::string& prefix, bool prependDirectory)
 {
-    const std::string fullPrefix = sofa::gui::BaseGUI::getScreenshotDirectoryPath() + "/" + prefix;
+    const std::string fullPrefix = (prependDirectory) ? sofa::gui::BaseGUI::getScreenshotDirectoryPath() + "/" + prefix
+                                                      : prefix;
 #ifndef SOFA_NO_OPENGL
     capture.setPrefix(fullPrefix);
 #endif
@@ -261,8 +262,8 @@ bool BaseViewer::load()
             currentCamera = sofa::core::objectmodel::New<component::visualmodel::InteractiveCamera>();
             currentCamera->setName(core::objectmodel::Base::shortName(currentCamera.get()));
             groot->addObject(currentCamera);
-            currentCamera->p_position.forceSet();
-            currentCamera->p_orientation.forceSet();
+            //currentCamera->p_position.forceSet();
+            //currentCamera->p_orientation.forceSet();
             currentCamera->bwdInit();
         }
         component::visualmodel::VisualStyle::SPtr visualStyle = NULL;

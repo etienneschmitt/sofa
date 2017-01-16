@@ -11,6 +11,10 @@ build_dir="$1"
 src_dir="$(cd "$2" && pwd)"
 sha=$(git --git-dir="$src_dir/.git" rev-parse HEAD)
 
+# Clean flag files
+rm -f "$build_dir/build-started"
+rm -f "$build_dir/build-finished"
+
 if [ -z "$CI_JOB" ]; then CI_JOB="$JOB_NAME"; fi
 
 send-message-to-dashboard() {
@@ -92,6 +96,8 @@ if [[ -n "$CI_TEST_SCENES" ]]; then
     "$src_dir/scripts/ci/scene-tests.sh" run "$build_dir" "$src_dir"
     scenes_errors_count=$("$src_dir/scripts/ci/scene-tests.sh" count-errors "$build_dir" "$src_dir")
     send-message-to-dashboard "scenes_errors=$scenes_errors_count"
+    scenes_crashes_count=$("$src_dir/scripts/ci/scene-tests.sh" count-crashes "$build_dir" "$src_dir")
+    send-message-to-dashboard "scenes_crashes=$scenes_crashes_count"
 fi
 
 "$src_dir/scripts/ci/tests.sh" print-summary "$build_dir" "$src_dir"

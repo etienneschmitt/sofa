@@ -165,7 +165,11 @@ create-directories() {
         list-scenes "$src_dir/$path" > "$output_dir/$path/scenes.txt"
         while read scene; do
             mkdir -p "$output_dir/$path/$scene"
-            echo 30 > "$output_dir/$path/$scene/timeout.txt" # Default timeout, in seconds
+            if [[ "$CI_BUILD_TYPE" == "Debug" ]]; then
+                echo 60 > "$output_dir/$path/$scene/timeout.txt" # Default debug timeout, in seconds
+            else
+                echo 30 > "$output_dir/$path/$scene/timeout.txt" # Default release timeout, in seconds
+            fi
             echo 100 > "$output_dir/$path/$scene/iterations.txt" # Default number of iterations
             echo "$path/$scene" >> "$output_dir/all-scenes.txt"
         done < "$output_dir/$path/scenes.txt"
@@ -193,7 +197,11 @@ parse-options-files() {
                                 scene="$(get-arg "$args" 1)"
                                 echo $scene >> "$output_dir/$path/add-patterns.txt"
                                 mkdir -p "$output_dir/$path/$scene"
-                                echo 30 > "$output_dir/$path/$scene/timeout.txt" # Default timeout, in seconds
+                                if [[ "$CI_BUILD_TYPE" == "Debug" ]]; then
+                                    echo 60 > "$output_dir/$path/$scene/timeout.txt" # Default debug timeout, in seconds
+                                else
+                                    echo 30 > "$output_dir/$path/$scene/timeout.txt" # Default release timeout, in seconds
+                                fi
                                 echo 100 > "$output_dir/$path/$scene/iterations.txt" # Default number of iterations
                             else
                                 echo "$path/.scene-tests: warning: 'add' expects one argument: add <pattern>" | log
@@ -268,7 +276,7 @@ initialize-scene-testing() {
     rm -rf "$output_dir"
     mkdir -p "$output_dir"
 
-    runSofa="$(ls "$build_dir/bin/runSofa"{,d} 2> /dev/null || true)"
+    runSofa="$(ls "$build_dir/bin/runSofa"{,d,_d} 2> /dev/null || true)"
     if [[ -x "$runSofa" ]]; then
         echo "Found runSofa: $runSofa" | log
     else
@@ -288,7 +296,7 @@ test-all-scenes() {
     while read scene; do
         echo "- $scene"
         local iterations=$(cat "$output_dir/$scene/iterations.txt")
-        local options="-g batch -s dag -n $iterations -z test"
+        local options="-g batch -s dag -n $iterations" # -z test
         local runSofa_cmd="$runSofa $options $src_dir/$scene >> $output_dir/$scene/output.txt 2>&1"
         local timeout=$(cat "$output_dir/$scene/timeout.txt")
         echo "$runSofa_cmd" > "$output_dir/$scene/command.txt"
@@ -309,13 +317,22 @@ test-all-scenes() {
 extract-warnings() {
     while read scene; do
         if [[ -e "$output_dir/$scene/output.txt" ]]; then
-            sed -ne "/^WARNING\[[^]]*\]/s:WARNING\[\([^]]*\)\]:$scene\: warning\: \1:p" \
-                "$output_dir/$scene/output.txt"
+            sed -ne "/^\[WARNING\] [^]]*/s:\([^]]*\):$scene\: \1:p \
+                " "$output_dir/$scene/output.txt"
         fi
     done < "$output_dir/all-tested-scenes.txt" > "$output_dir/warnings.txt"
 }
 
 extract-errors() {
+    while read scene; do
+        if [[ -e "$output_dir/$scene/output.txt" ]]; then
+            sed -ne "/^\[ERROR\] [^]]*/s:\([^]]*\):$scene\: \1:p \
+                " "$output_dir/$scene/output.txt"
+        fi
+    done < "$output_dir/all-tested-scenes.txt" > "$output_dir/errors.txt"
+}
+
+extract-crashes() {
     while read scene; do
         if [[ -e "$output_dir/$scene/status.txt" ]]; then
             local status="$(cat "$output_dir/$scene/status.txt")"
@@ -323,7 +340,11 @@ extract-errors() {
                 echo "$scene: error: $status"
             fi
         fi
-    done < "$output_dir/all-tested-scenes.txt" > "$output_dir/errors.txt"
+    done < "$output_dir/all-tested-scenes.txt" > "$output_dir/crashes.txt"
+}
+
+count-tested-scenes() {
+    wc -l < "$output_dir/all-tested-scenes.txt" | tr -d '   '
 }
 
 count-warnings() {
@@ -334,30 +355,47 @@ count-errors() {
     wc -l < "$output_dir/errors.txt" | tr -d ' 	'
 }
 
+count-crashes() {
+    wc -l < "$output_dir/crashes.txt" | tr -d '   '
+}
+
 print-summary() {
     echo "Scene testing summary:"
+    echo "- $(count-tested-scenes) scene(s) tested"
     echo "- $(count-warnings) warning(s)"
-    echo "- $(count-errors) error(s):"
-    while read scene; do
-        if [[ -e "$output_dir/$scene/status.txt" ]]; then
-            local status="$(cat "$output_dir/$scene/status.txt")"
-            case "$status" in
-                "timeout")
-                    echo "  - Timeout: $scene"
-                    ;;
-                [0-9]*)
-                    if [[ "$status" -gt 128 && ( $(uname) = Darwin || $(uname) = Linux ) ]]; then
-                        echo "  - Exit with status $status ($(kill -l $status)): $scene"
-                    elif [[ "$status" != 0 ]]; then
-                        echo "  - Exit with status $status: $scene"
-                    fi
-                    ;;
-                *)
-                    echo "Error: unexpected value in $output_dir/$scene/status.txt: $status"
-                    ;;
-            esac
-        fi
-    done < "$output_dir/all-tested-scenes.txt"
+    
+    local errors='$(count-errors)'
+    echo "- $(count-errors) error(s)"
+    if [[ "$errors" != 0 ]]; then
+        while read error; do
+			echo "  - $error"
+        done < "$output_dir/errors.txt"
+    fi
+    
+    local crashes='$(count-crashes)'
+    echo "- $(count-crashes) crash(es)"
+    if [[ "$crashes" != 0 ]]; then
+        while read scene; do
+            if [[ -e "$output_dir/$scene/status.txt" ]]; then
+                local status="$(cat "$output_dir/$scene/status.txt")"
+                    case "$status" in
+                    "timeout")
+                        echo "  - Timeout: $scene"
+                        ;;
+                    [0-9]*)
+                        if [[ "$status" -gt 128 && ( $(uname) = Darwin || $(uname) = Linux ) ]]; then
+                            echo "  - Exit with status $status ($(kill -l $status)): $scene"
+                        elif [[ "$status" != 0 ]]; then
+                            echo "  - Exit with status $status: $scene"
+                        fi
+                        ;;
+                    *)
+                        echo "Error: unexpected value in $output_dir/$scene/status.txt: $status"
+                        ;;
+                esac
+            fi
+        done < "$output_dir/all-tested-scenes.txt"
+    fi
 }
 
 if [[ "$command" = run ]]; then
@@ -365,12 +403,15 @@ if [[ "$command" = run ]]; then
     test-all-scenes
     extract-warnings
     extract-errors
+    extract-crashes
 elif [[ "$command" = print-summary ]]; then
     print-summary
 elif [[ "$command" = count-warnings ]]; then
     count-warnings
 elif [[ "$command" = count-errors ]]; then
     count-errors
+elif [[ "$command" = count-crashes ]]; then
+    count-crashes
 else
     echo "Unknown command: $command"
 fi

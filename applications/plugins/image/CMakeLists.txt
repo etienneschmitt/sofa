@@ -1,6 +1,7 @@
+add_subdirectory(extlibs/CImg)
 add_subdirectory(extlibs/DiffusionSolver)
 
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.1)
 project(image)
 
 set(IMAGE_MAJOR_VERSION 0)
@@ -12,6 +13,7 @@ set(SOURCE_FILES
     DepthMapToMeshEngine.cpp
     ImageAccumulator.cpp
     ImageContainer.cpp
+    GenerateImage.cpp
     ImageDataDisplay.cpp
     ImageExporter.cpp
     ImageFilter.cpp
@@ -38,6 +40,7 @@ set(HEADER_FILES
     ImageAccumulator.h
     ImageAlgorithms.h
     ImageContainer.h
+    GenerateImage.h
     ImageDataDisplay.h
     ImageExporter.h
     ImageFilter.h
@@ -57,12 +60,25 @@ set(HEADER_FILES
     VoronoiToMeshEngine.h
 )
 
-set(PYTHON_FILES
-    python/SofaImage/API.py
-    python/SofaImage/__init__.py
-)
 
 set(README_FILES image.txt)
+
+
+find_package(SofaPython QUIET)
+if( SofaPython_FOUND )
+
+    set(PYTHON_FILES
+        python/SofaImage/API.py
+        python/SofaImage/__init__.py
+    )
+
+    list(APPEND SOURCE_FILES python/Binding_ImageData.cpp)
+    list(APPEND HEADER_FILES python/Binding_ImageData.h python/Binding_ImageData.inl)
+endif()
+
+
+
+
 
 find_package(SofaBase REQUIRED)
 find_package(SofaGeneral REQUIRED)
@@ -104,13 +120,10 @@ endif()
 
 # OpenMP is bugged in image, forcing it to be single threaded for now
 if(SOFA_OPENMP)
-     message( WARNING "image: deactivating OpenMP" )
-     string(REPLACE "${OpenMP_CXX_FLAGS}" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
-     string(REPLACE "${OpenMP_CXX_FLAGS}" "" CMAKE_CXX_LINK_FLAGS ${CMAKE_CXX_LINK_FLAGS})
+    message( WARNING "image: deactivating OpenMP" )
+    string(REPLACE "${OpenMP_CXX_FLAGS}" "" CMAKE_CXX_FLAGS ${CMAKE_CXX_FLAGS})
+    string(REPLACE "${OpenMP_CXX_FLAGS}" "" CMAKE_CXX_LINK_FLAGS ${CMAKE_CXX_LINK_FLAGS})
 endif()
-
-
-
 
 
 find_package(DiffusionSolver CONFIG REQUIRED)
@@ -133,8 +146,16 @@ if(FREENECT_FOUND)
     target_include_directories(${PROJECT_NAME} PUBLIC "${FREENECT_INCLUDE_DIR}")
 endif()
 set_target_properties(${PROJECT_NAME} PROPERTIES VERSION ${IMAGE_VERSION})
-set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "-DSOFA_BUILD_IMAGE")
 set_target_properties(${PROJECT_NAME} PROPERTIES PUBLIC_HEADER "${HEADER_FILES}")
+
+
+set(IMAGE_COMPILER_FLAGS "-DSOFA_BUILD_IMAGE")
+
+
+if( SofaPython_FOUND )
+    target_link_libraries(${PROJECT_NAME} SofaPython)    
+    set(IMAGE_COMPILER_FLAGS "${IMAGE_COMPILER_FLAGS} -DSOFA_HAVE_SOFAPYTHON")
+endif()
 
 if(SOFA_HAVE_ZLIB)
     target_link_libraries(${PROJECT_NAME} SofaFramework::ZLIB)
@@ -146,6 +167,10 @@ if(SOFA_BUILD_TESTS)
         add_subdirectory(image_test)
     endif()
 endif()
+
+
+set_target_properties(${PROJECT_NAME} PROPERTIES COMPILE_FLAGS "${IMAGE_COMPILER_FLAGS}")
+
 
 find_package(SofaGui QUIET)
 if(SofaGui_FOUND AND SOFA_GUI_QT)

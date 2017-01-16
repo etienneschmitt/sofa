@@ -130,7 +130,8 @@ public:
     /// return the number of dofs in the mask
     size_t nbActiveDofs() const;
 
-    //    size_t getHash() const;
+    /// return a hash, useful to check if the mask changed
+    size_t getHash() const;
 
 protected:
 
@@ -169,7 +170,7 @@ public:
     //    const InternalStorage& getEntries() const { return mask; }
 
     void resize( size_t size ) { m_size=size; }
-    inline void clear() {}
+    inline void clear() { m_size=0; }
 
     size_t size() const {
         return m_size;
@@ -185,6 +186,8 @@ public:
 
     /// return the number of dofs in the mask
     size_t nbActiveDofs() const {return m_size;}
+
+    size_t getHash() const { return 0; }
 
 protected:
 

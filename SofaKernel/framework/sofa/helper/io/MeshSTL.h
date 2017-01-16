@@ -26,7 +26,6 @@
 #define SOFA_HELPER_IO_MESHSTL_H
 
 #include <sofa/helper/io/Mesh.h>
-#include <sofa/helper/helper.h>
 #include <fstream>
 
 namespace sofa
@@ -51,8 +50,12 @@ public:
 
 protected:
 
-    void readSTL (const std::string &filename);
+    /// ascii
+    void readSTL ( std::ifstream& file );
+
+    /// binary
     void readBinarySTL (const std::string &filename);
+
 
 };
 

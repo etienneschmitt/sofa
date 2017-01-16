@@ -41,8 +41,6 @@
 
 #cmakedefine SOFA_HAVE_BOOST_DATE_TIME
 
-#cmakedefine SOFA_HAVE_BOOST_CHRONO
-
 #cmakedefine SOFA_HAVE_TINYXML
 
 #cmakedefine SOFA_DUMP_VISITOR_INFO
@@ -58,6 +56,21 @@
 #cmakedefine SOFA_FLOAT
 
 #cmakedefine SOFA_DOUBLE
+
+#cmakedefine SOFA_WITH_FLOAT
+
+#cmakedefine SOFA_WITH_DOUBLE
+
+#cmakedefine SOFA_USE_MASK
+
+#ifdef _MSC_VER
+#define EIGEN_DONT_ALIGN
+#endif // _MSC_VER
+
+#ifdef WIN32
+#define UNICODE
+#define _USE_MATH_DEFINES // just to access M_PI with cmath
+#endif // WIN32
 
 #ifdef SOFA_FLOAT
 typedef float SReal;

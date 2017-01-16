@@ -55,13 +55,13 @@ public:
     //@{
 
     typedef typename ImageTypes::imCoord imCoord;
-    typedef typename sofa::component::shapefunction::BaseImageShapeFunctionSpecialization<ImageTypes::label>::DistT DistT;
-    typedef typename sofa::component::shapefunction::BaseImageShapeFunctionSpecialization<ImageTypes::label>::DistTypes DistTypes;
+    typedef typename sofa::component::shapefunction::BaseImageShapeFunctionSpecialization<ImageTypes>::DistT DistT;
+    typedef typename sofa::component::shapefunction::BaseImageShapeFunctionSpecialization<ImageTypes>::DistTypes DistTypes;
     typedef helper::ReadAccessor<Data< DistTypes > > raDist;
     Data< DistTypes > d_weights; ///< weights of the shape function
 
-    typedef typename sofa::component::shapefunction::BaseImageShapeFunctionSpecialization<ImageTypes::label>::IndT IndT;
-    typedef typename sofa::component::shapefunction::BaseImageShapeFunctionSpecialization<ImageTypes::label>::IndTypes IndTypes;
+    typedef typename sofa::component::shapefunction::BaseImageShapeFunctionSpecialization<ImageTypes>::IndT IndT;
+    typedef typename sofa::component::shapefunction::BaseImageShapeFunctionSpecialization<ImageTypes>::IndTypes IndTypes;
     typedef helper::ReadAccessor<Data< IndTypes > > raInd;
     Data< IndTypes > d_indices; ///< indices of the shape function
 
@@ -96,6 +96,8 @@ protected:
 
     virtual void update()
     {
+        unsigned int nodeIndex = d_nodeIndex.getValue();
+        sout << "Update image for node " << nodeIndex << sendl;
         raDist weightData(this->d_weights);
         cimg_library::CImg<DistT> const& weight=weightData->getCImg();
         raInd indicesData(this->d_indices);

@@ -35,8 +35,6 @@
 #include <iostream>
 #include <typeinfo>
 
-#include <boost/shared_ptr.hpp>
-
 namespace sofa
 {
 
@@ -63,7 +61,7 @@ public:
     class Creator
     {
     public:
-        typedef boost::shared_ptr<Creator> SPtr;
+        typedef std::shared_ptr<Creator> SPtr;
 
         virtual ~Creator() { }
         /// Pre-construction check.
@@ -95,7 +93,7 @@ public:
     class ClassEntry
     {
     public:
-        typedef boost::shared_ptr<ClassEntry> SPtr;
+        typedef std::shared_ptr<ClassEntry> SPtr;
 
         std::string className;
         std::set<std::string> aliases;
@@ -104,6 +102,7 @@ public:
         std::string license;
         std::string defaultTemplate;
         CreatorMap creatorMap;
+        std::map<std::string, std::vector<std::string>> m_dataAlias ;
     };
     typedef std::map<std::string, ClassEntry::SPtr> ClassEntryMap;
 
@@ -137,11 +136,11 @@ public:
     /// Add an alias name for an already registered class
     ///
     /// \param name     name of the new alias
-    /// \param result   class pointed to by the new alias
+    /// \param target   class pointed to by the new alias
     /// \param force    set to true if this method should override any entry already registered for this name
     /// \param previous (output) previous ClassEntry registered for this name
-    bool addAlias(std::string name, std::string result, bool force=false,
-		  ClassEntry::SPtr* previous = NULL);
+    bool addAlias(std::string name, std::string target, bool force=false,
+          ClassEntry::SPtr* previous = NULL);
 
     /// Reset an alias to a previous state
     ///

@@ -26,11 +26,13 @@
 #include "misc/CompliantSolverMerger.h"
 #include "contact/CompliantContact.h"
 
+#ifdef SOFA_HAVE_SOFAPYTHON
 #include <SofaPython/PythonCommon.h>
 #include <SofaPython/PythonMacros.h>
 #include <SofaPython/PythonFactory.h>
-#include "misc/python.h"
 extern PyMethodDef _CompliantModuleMethods[]; // functions of the _Compliant python module
+#include "python/Binding_AssembledSystem.h"
+#endif
 
 
 namespace sofa
@@ -60,15 +62,20 @@ void initExternalModule()
 
         component::collision::CompliantSolverMerger::add();
 
-        // previous Eigen versions have a critical bug (v.noalias()+=w does not work in every situations)
-        BOOST_STATIC_ASSERT( EIGEN_WORLD_VERSION>=3 && EIGEN_MAJOR_VERSION>=2 && EIGEN_MINOR_VERSION>=5 );
+        // previous Eigen versions have a critical bug (v.noalias()+=w does not work in some situations)
+        static_assert( EIGEN_WORLD_VERSION>=3 && EIGEN_MAJOR_VERSION>=2 && EIGEN_MINOR_VERSION>=5, "" );
 
+#ifdef SOFA_HAVE_SOFAPYTHON
         // adding _Compliant python module
         if( PythonFactory::s_sofaPythonModule ) // add the module only if the Sofa module exists (SofaPython is loaded)
         {
             static PyObject *s__CompliantPythonModule = SP_INIT_MODULE(_Compliant);
-            (void)s__CompliantPythonModule;
+
+            // adding more bindings to the _Compliant module
+            SP_ADD_CLASS( s__CompliantPythonModule, AssembledSystem );
         }
+#endif
+
     }
 }
 

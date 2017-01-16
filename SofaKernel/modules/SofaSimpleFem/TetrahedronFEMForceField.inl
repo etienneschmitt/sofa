@@ -36,6 +36,7 @@
 #include <set>
 #include <SofaBaseLinearSolver/CompressedRowSparseMatrix.h>
 #include <sofa/simulation/AnimateBeginEvent.h>
+#include <sofa/simulation/AnimateEndEvent.h>
 
 
 namespace sofa
@@ -47,7 +48,7 @@ namespace component
 namespace forcefield
 {
 
-
+using sofa::core::objectmodel::ComponentState ;
 
 //////////////////////////////////////////////////////////////////////
 ////////////////////  basic computation methods  /////////////////////
@@ -688,8 +689,8 @@ inline void TetrahedronFEMForceField<DataTypes>::accumulateForceSmall( Vector& f
         }
 
         /*for(unsigned int i=0;i<_stiffnesses.size();++i)
-        	for(typename CompressedValue::iterator it=_stiffnesses[i].begin();it!=_stiffnesses[i].end();++it)
-        		serr<<i<<" "<<(*it).first<<"   "<<(*it).second<<"   "<<JKJt[i][(*it).first]<<sendl;*/
+            for(typename CompressedValue::iterator it=_stiffnesses[i].begin();it!=_stiffnesses[i].end();++it)
+                serr<<i<<" "<<(*it).first<<"   "<<(*it).second<<"   "<<JKJt[i][(*it).first]<<sendl;*/
 
         F = JKJt * D;
     }
@@ -1396,6 +1397,8 @@ inline void TetrahedronFEMForceField<DataTypes>::applyStiffnessCorotational( Vec
 template <class DataTypes>
 void TetrahedronFEMForceField<DataTypes>::init()
 {
+    m_componentstate = ComponentState::Invalid ;
+
     const VecReal& youngModulus = _youngModulus.getValue();
     minYoung=youngModulus[0];
     maxYoung=youngModulus[0];
@@ -1416,7 +1419,8 @@ void TetrahedronFEMForceField<DataTypes>::init()
     _mesh = this->getContext()->getMeshTopology();
     if (_mesh==NULL)
     {
-        serr << "ERROR(TetrahedronFEMForceField): object must have a BaseMeshTopology."<<sendl;
+        msg_error(this) << " object must have a mesh topology. The component is inactivated.  "
+                           "To remove this error message please add a topology component to your scene.";
         return;
     }
 #ifdef SOFA_NEW_HEXA
@@ -1425,7 +1429,8 @@ void TetrahedronFEMForceField<DataTypes>::init()
     if (_mesh==NULL || (_mesh->getNbTetrahedra()<=0 && _mesh->getNbCubes()<=0))
 #endif
     {
-        serr << "ERROR(TetrahedronFEMForceField): object must have a tetrahedric BaseMeshTopology."<<sendl;
+        msg_error(this) << " object must have a tetrahedric topology. The component is inactivated.  "
+                           "To remove this error message please add a tetrahedric topology component to your scene.";
         return;
     }
     if (!_mesh->getTetrahedra().empty())
@@ -1515,16 +1520,16 @@ void TetrahedronFEMForceField<DataTypes>::init()
         tetrahedra->reserve(nbcubes*5);
         for (int i=0;i<nbcubes;i++)
         {
-        	MeshTopology::Cube c = _mesh->getCube(i);
-        	int sym = 0;
-        	if ((i%nx)&1) sym+=1;
-        	if (((i/nx)%ny)&1) sym+=2;
-        	if ((i/(nx*ny))&1) sym+=4;
-        	tetrahedra->push_back(make_array(c[1^sym],c[0^sym],c[3^sym],c[5^sym]));
-        	tetrahedra->push_back(make_array(c[2^sym],c[3^sym],c[0^sym],c[6^sym]));
-        	tetrahedra->push_back(make_array(c[4^sym],c[5^sym],c[6^sym],c[0^sym]));
-        	tetrahedra->push_back(make_array(c[7^sym],c[6^sym],c[5^sym],c[3^sym]));
-        	tetrahedra->push_back(make_array(c[0^sym],c[3^sym],c[5^sym],c[6^sym]));
+            MeshTopology::Cube c = _mesh->getCube(i);
+            int sym = 0;
+            if ((i%nx)&1) sym+=1;
+            if (((i/nx)%ny)&1) sym+=2;
+            if ((i/(nx*ny))&1) sym+=4;
+            tetrahedra->push_back(make_array(c[1^sym],c[0^sym],c[3^sym],c[5^sym]));
+            tetrahedra->push_back(make_array(c[2^sym],c[3^sym],c[0^sym],c[6^sym]));
+            tetrahedra->push_back(make_array(c[4^sym],c[5^sym],c[6^sym],c[0^sym]));
+            tetrahedra->push_back(make_array(c[7^sym],c[6^sym],c[5^sym],c[3^sym]));
+            tetrahedra->push_back(make_array(c[0^sym],c[3^sym],c[5^sym],c[6^sym]));
         }
         */
         _indexedElements = tetrahedra;
@@ -1547,10 +1552,11 @@ void TetrahedronFEMForceField<DataTypes>::init()
         }
     }*/
 
+    m_componentstate = ComponentState::Valid ;
 
     reinit(); // compute per-element stiffness matrices and other precomputed values
 
-//     sout << "TetrahedronFEMForceField: init OK, "<<_indexedElements->size()<<" tetra."<<sendl;
+     sout << "TetrahedronFEMForceField: init OK, "<<_indexedElements->size()<<" tetra."<<sendl;
 }
 
 
@@ -1569,6 +1575,9 @@ void TetrahedronFEMForceField<DataTypes>::reset()
 template <class DataTypes>
 inline void TetrahedronFEMForceField<DataTypes>::reinit()
 {
+    if(m_componentstate==ComponentState::Invalid)
+        return ;
+
     if (!this->mstate) return;
     if (!_mesh->getTetrahedra().empty())
     {
@@ -1598,12 +1607,6 @@ inline void TetrahedronFEMForceField<DataTypes>::reinit()
 
         helper::WriteAccessor<Data<helper::vector<Real> > > vMN =  _vonMisesPerNode;
         vMN.resize(this->mstate->getSize());
-
-//#ifdef SIMPLEFEM_COLORMAP
-//#ifndef SOFA_NO_OPENGL
-//        _showStressColorMapReal->initOld(_showStressColorMap.getValue());
-//#endif
-//#endif
 
         prevMaxStress = -1.0;
         updateVonMisesStress = true;
@@ -1818,11 +1821,8 @@ inline void TetrahedronFEMForceField<DataTypes>::addDForce(const core::Mechanica
 template<class DataTypes>
 void TetrahedronFEMForceField<DataTypes>::draw(const core::visual::VisualParams* vparams)
 {
-
-    if (_computeVonMisesStress.getValue() > 0) {
-        if (updateVonMisesStress)
-            computeVonMisesStress();
-    }
+    if(m_componentstate == ComponentState::Invalid)
+        return ;
 
     if (!vparams->displayFlags().getShowForceFields()) return;
     if (!this->mstate) return;
@@ -1857,9 +1857,6 @@ void TetrahedronFEMForceField<DataTypes>::draw(const core::visual::VisualParams*
     helper::ReadAccessor<Data<helper::vector<Real> > > vM =  _vonMisesPerElement;
     helper::ReadAccessor<Data<helper::vector<Real> > > vMN =  _vonMisesPerNode;
     if (_computeVonMisesStress.getValue() > 0) {
-        if (updateVonMisesStress)
-            computeVonMisesStress();
-
         for (size_t i = 0; i < vM.size(); i++) {
             minVM = (vM[i] < minVM) ? vM[i] : minVM;
             maxVM = (vM[i] > maxVM) ? vM[i] : maxVM;
@@ -2020,7 +2017,7 @@ void TetrahedronFEMForceField<DataTypes>::draw(const core::visual::VisualParams*
 
             if(heterogeneous)
             {
-                float col = (float)((youngModulus[i]-minYoung) / (maxYoung-minYoung));                
+                float col = (float)((youngModulus[i]-minYoung) / (maxYoung-minYoung));
                 float fac = col * 0.5f;
                 defaulttype::Vec<4,float> color1 = defaulttype::Vec<4,float>(col      , 0.0f - fac , 1.0f-col,1.0f);
                 defaulttype::Vec<4,float> color2 = defaulttype::Vec<4,float>(col      , 0.5f - fac , 1.0f-col,1.0f);
@@ -2037,7 +2034,7 @@ void TetrahedronFEMForceField<DataTypes>::draw(const core::visual::VisualParams*
 #ifdef SIMPLEFEM_COLORMAP
                 if (_computeVonMisesStress.getValue() > 0) {
                     helper::ColorMap::evaluator<Real> evalColor = m_VonMisesColorMap.getEvaluator(minVM, maxVM);
-                    defaulttype::Vec4f col = evalColor(vM[i]); //*vM[i]);
+                    defaulttype::Vec4f col = evalColor(vM[i]);
 
                     col[3] = 1.0f;
                     vparams->drawTool()->drawTriangles(points[0],col);
@@ -2046,16 +2043,6 @@ void TetrahedronFEMForceField<DataTypes>::draw(const core::visual::VisualParams*
                     vparams->drawTool()->drawTriangles(points[3],col);
 
                     for(unsigned int i=0 ; i<4 ; i++) points[i].clear();
-
-                    /*visualmodel::ColorMap::evaluator<Real> evalColor = _showStressColorMapReal->getEvaluator(minVMN, maxVMN);
-                    std::vector<Vec4f> col(3);
-                    std::vector< defaulttype::Vector3 > normals;
-                    normals.clear();
-                    col[0] = evalColor(vMN[a]);
-                    col[1] = evalColor(vMN[b]);
-                    col[2] = evalColor(vMN[c]);
-
-                    vparams->drawTool()->drawTriangles(points[0],normals, col);*/
                 }
 #endif
             }
@@ -2430,7 +2417,7 @@ void TetrahedronFEMForceField<DataTypes>::handleEvent(core::objectmodel::Event *
 {
     if (sofa::simulation::AnimateBeginEvent::checkEventType(event)) {
         if (_updateStiffness.getValue()) {
-            //std::cout << this->getName() << " HANDLE EVENT " << std::endl;            
+            //std::cout << this->getName() << " HANDLE EVENT " << std::endl;
 
             unsigned int i;
             typename VecElement::const_iterator it;
@@ -2444,24 +2431,23 @@ void TetrahedronFEMForceField<DataTypes>::handleEvent(core::objectmodel::Event *
             }
         }
     }
+    if (sofa::simulation::AnimateEndEvent::checkEventType(event)) {
+        if (_computeVonMisesStress.getValue() > 0) {
+            if (updateVonMisesStress)
+                computeVonMisesStress();
+        }
+    }
 
 }
 
 template<class DataTypes>
 void TetrahedronFEMForceField<DataTypes>::computeVonMisesStress()
 {
-
     typename core::behavior::MechanicalState<DataTypes>* mechanicalObject;
     this->getContext()->get(mechanicalObject);
     const VecCoord& X = mechanicalObject->read(core::ConstVecCoordId::position())->getValue();
 
     helper::ReadAccessor<Data<VecCoord> > X0 =  _initialPoints;
-
-#ifdef SOFATETRAHEDRONFEMFORCEFIELD_COLORMAP
-#ifndef SOFA_NO_OPENGL
-//    _showStressColorMapReal->entries.clear();
-#endif
-#endif
 
     VecCoord U;
     U.resize(X.size());
@@ -2655,7 +2641,7 @@ void TetrahedronFEMForceField<DataTypes>::computeVonMisesStress()
     vonMisesStressColors.resize(_mesh->getNbPoints());
     vonMisesStressColorsCoeff.resize(_mesh->getNbPoints());
     std::fill(vonMisesStressColorsCoeff.begin(), vonMisesStressColorsCoeff.end(), 0);
-#ifndef SOFA_NO_OPENGL
+
     unsigned int i = 0;
     for(it = _indexedElements->begin() ; it != _indexedElements->end() ; ++it, ++i)
     {
@@ -2677,8 +2663,7 @@ void TetrahedronFEMForceField<DataTypes>::computeVonMisesStress()
             vonMisesStressColors[i] /= vonMisesStressColorsCoeff[i];
         }
     }
-#endif
-#endif
+#endif // SIMPLEFEM_COLORMAP
 }
 
 
